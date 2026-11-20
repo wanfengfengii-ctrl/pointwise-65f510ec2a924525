@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from sqlite3 import Connection
 
 from source.dispatch import DispatchPacket, decode_packet, encode_packet
+from .events import ADMISSION, append_cut_event
 from .identity import PacketIdentity, packet_identity
 from .receipts import (
     AdmissionReceipt,
@@ -60,6 +61,7 @@ def append_acceptance(db: Connection, downstream_shift: str, packet: DispatchPac
         (downstream_shift, identity.upstream_shift, identity.source_seq, admission_seq,
          json.dumps(encode_packet(packet)), json.dumps(encode_admission_receipt(receipt))),
     )
+    append_cut_event(db, downstream_shift, ADMISSION, admission_seq)
     return AcceptedPacket(packet, receipt)
 
 

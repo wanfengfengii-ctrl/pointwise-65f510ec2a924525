@@ -1,5 +1,9 @@
+from .archive import CutReport as CutReport
+from .archive import CutUpstreamRow as CutUpstreamRow
 from .archive import NormalReport as NormalReport
 from .archive import ReportReceipt as ReportReceipt
 from .publish import MissingPackets as MissingPackets
+from .publish import issue_cut as issue_cut
 from .publish import issue_normal as issue_normal
+from .readback import read_cut as read_cut
 from .readback import read_normal as read_normal

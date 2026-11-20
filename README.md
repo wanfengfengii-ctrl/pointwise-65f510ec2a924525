@@ -33,6 +33,10 @@ python3 -B -m unittest discover -s tests -t . -v
 | `source` / `local` | `close_upstream(db, upstream_shift)` / `close_local(db, downstream_shift)` | 关闭相应采样，返回固定清单 |
 | `report` | `issue_normal(db, downstream_shift, upstream_manifest)` | 返回 `MissingPackets` 或含 `ReportReceipt` 的 `NormalReport` |
 | `report` | `read_normal(db, report_no)` | 按号读取固定正文和原回执 |
+| `source` | `open_cut(db, upstream_shift)` | 固定当时已首发原包为 `CutNotice`，重复开单返回首次通知 |
+| `receiver` | `deliver_notice(db, downstream_shift, notice)` | 验收保存交班通知，相同通知重投返回首次通知 |
+| `report` | `issue_cut(db, downstream_shift)` | 沿通知截面签发或复领 `CutReport`，支持 `before_commit` |
+| `report` | `read_cut(db, cut_no)` | 凭交班号读取固定 `CutReport`，只需下游站库 |
 
 `ShiftPair` 的字段顺序为上游站、上游班次、下游站、下游班次。定标用 `Calibration(scale, offset)`。`SourceOrigin` 包含采集站、班次、采样簿及簿内条目。`demo.py` 展示组装这些输入、使用投递端及停源后领取的完整调用。
 
@@ -41,3 +45,5 @@ python3 -B -m unittest discover -s tests -t . -v
 上游源序按原读登记生成，实际发件以首发账为准。首纳序和本站采样序独立。重投相同原件复用首纳回执，重投异内容或送错班次拒绝。上游尚有待发读数时关班失败，采集仍开放。两侧重复关班返回原清单，下游关闭采样后可以继续接收迟到原件。签报输入来自可信站对的上游关班操作，下游核对清单配对、序列和实收。完整签报按上游源序和本站采样序逐笔列出，合计从正文原读计算。相同关班输入再次签发返回原班报。
 
 未知班次、原读或报告号返回 `KeyError`，非法字段、错误配对、冻结配置冲突或同号异内容返回 `ValueError` 或其子类。已关闭采样、本站未关或上游有待发原读返回 `RuntimeError` 或其子类。合法缺件通过 `MissingPackets.missing` 按源序返回。`issue_normal` 可接收仅在完整新班报待提交时调用的 `before_commit(report_no)` 钩子，钩子抛错将回滚正文与回执。SQLite 操作错误保留原异常。
+
+不停采交班覆盖扩展后新开的配对班次，每对最多一单，口径详见 `CUTS.md`。上游 `open_cut` 固定当时实际首发的原包（先登记后迟发的低号原读算切后），下游以首次有效通知和首件切后原样首纳中较早的事件为截点，截点事件本身不入账。收到通知即可 `issue_cut`：切前实发件按源序列出，截点前首纳的为已收并附原回执，其余在途，同时交付截点前本站原读和精确微升合计。签报与回执一次提交，失败沿原截面续办，迟到、重投和常规签报都不改判已冻结的交班结果，停源重开后凭交班号领取。

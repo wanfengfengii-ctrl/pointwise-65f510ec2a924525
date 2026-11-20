@@ -80,21 +80,27 @@ def initialize_station_store(db: sqlite3.Connection, role: str) -> None:
         if role == 'upstream':
             from source.acquire import initialize_upstream_reads
             from source.closeout import initialize_upstream_closeouts
-            from source.dispatch import initialize_dispatch_ledger
+            from source.dispatch import initialize_cut_notices, initialize_dispatch_ledger
 
             initialize_upstream_reads(db)
             initialize_dispatch_ledger(db)
+            initialize_cut_notices(db)
             initialize_upstream_closeouts(db)
         else:
             from local.acquire import initialize_local_reads
             from local.closeout import initialize_local_closeouts
+            from receiver.events import initialize_cut_events
             from receiver.ledger import initialize_receipt_ledger
-            from report.archive import initialize_report_archive
+            from receiver.notices import initialize_accepted_notices
+            from report.archive import initialize_cut_archive, initialize_report_archive
 
+            initialize_cut_events(db)
             initialize_receipt_ledger(db)
+            initialize_accepted_notices(db)
             initialize_local_reads(db)
             initialize_local_closeouts(db)
             initialize_report_archive(db)
+            initialize_cut_archive(db)
 
 
 def _encode_calibration(calibration: Calibration) -> list[str]:

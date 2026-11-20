@@ -45,6 +45,28 @@ def decode_packet(data: dict) -> DispatchPacket:
     )
 
 
+@dataclass(frozen=True, slots=True)
+class CutNotice:
+    cut_no: str
+    pair: ShiftPair
+    packets: tuple[DispatchPacket, ...]
+
+
+def encode_cut_notice(notice: CutNotice) -> dict:
+    return {
+        'cut_no': notice.cut_no,
+        'pair': asdict(notice.pair),
+        'packets': [encode_packet(packet) for packet in notice.packets],
+    }
+
+
+def decode_cut_notice(data: dict) -> CutNotice:
+    return CutNotice(
+        data['cut_no'], ShiftPair(**data['pair']),
+        tuple(decode_packet(packet) for packet in data['packets']),
+    )
+
+
 def initialize_dispatch_ledger(db: Connection) -> None:
     db.execute('''
         CREATE TABLE IF NOT EXISTS dispatches (
@@ -53,6 +75,15 @@ def initialize_dispatch_ledger(db: Connection) -> None:
             packet TEXT NOT NULL,
             PRIMARY KEY (shift_id, source_seq),
             FOREIGN KEY (shift_id, source_seq) REFERENCES upstream_reads(shift_id, source_seq)
+        )
+    ''')
+
+
+def initialize_cut_notices(db: Connection) -> None:
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS cut_notices (
+            shift_id TEXT PRIMARY KEY NOT NULL REFERENCES shifts(shift_id),
+            notice TEXT NOT NULL
         )
     ''')
 
@@ -73,6 +104,31 @@ def list_dispatched_packets(db: Connection, upstream_shift: str) -> tuple[Dispat
         (upstream_shift,),
     )
     return tuple(decode_packet(json.loads(row[0])) for row in rows)
+
+
+def load_cut_notice(db: Connection, upstream_shift: str) -> CutNotice | None:
+    row = db.execute(
+        'SELECT notice FROM cut_notices WHERE shift_id = ?', (upstream_shift,),
+    ).fetchone()
+    return None if row is None else decode_cut_notice(json.loads(row[0]))
+
+
+def open_cut(db: Connection, upstream_shift: str) -> CutNotice:
+    with write_transaction(db):
+        snapshot = load_shift_snapshot(db, upstream_shift, 'upstream')
+        existing = load_cut_notice(db, upstream_shift)
+        if existing is not None:
+            return existing
+        require_open_station(db, upstream_shift, 'upstream')
+        notice = CutNotice(
+            f'C/{snapshot.pair.downstream_shift}', snapshot.pair,
+            list_dispatched_packets(db, upstream_shift),
+        )
+        db.execute(
+            'INSERT INTO cut_notices VALUES (?, ?)',
+            (upstream_shift, json.dumps(encode_cut_notice(notice))),
+        )
+        return notice
 
 
 def dispatch(db: Connection, upstream_shift: str, read_no: tuple[str, str, int]) -> DispatchPacket:

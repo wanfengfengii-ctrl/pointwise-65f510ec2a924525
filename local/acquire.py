@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from sqlite3 import Connection
 
+from receiver.events import LOCAL, append_cut_event
 from shift.calibration import decode_integer, encode_integer
 from shift.lifecycle import require_open_station
 from shift.store import load_shift_snapshot, write_transaction
@@ -62,6 +63,7 @@ def record_local(db: Connection, downstream_shift: str, point: str, raw: int) ->
             'INSERT INTO local_reads VALUES (?, ?, ?, ?, ?)',
             (downstream_shift, local_seq, point, encode_integer(raw), encode_integer(microliters)),
         )
+        append_cut_event(db, downstream_shift, LOCAL, local_seq)
         return LocalRead(snapshot.pair.downstream_station, downstream_shift, local_seq, point, raw, microliters)
 
 
